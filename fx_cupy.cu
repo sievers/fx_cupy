@@ -57,6 +57,47 @@ void conv_cols_gpu(T *in, float *out, float *win, int n, int m, int kk)
     }
 }
 /*--------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------*/
+template<typename T>
+__global__
+void conv_cols_complex_gpu(T *in, cuFloatComplex *out, float *win, int n, int m, int kk)
+{
+  cuFloatComplex mywin[KMAX];
+  cuFloatComplex mydat[KMAX];
+  int di=blockDim.x*gridDim.x;
+  for (int i=blockDim.x*blockIdx.x+threadIdx.x;i<n;i+=di)
+    {
+      //copy window
+      for (int j=0;j<kk;j++)
+	mywin[j]=make_cuFloatComplex(win[i+j*n],0);
+      //copy first bit of data
+      for (int j=0;j<kk-1;j++)  {
+	T tmp;
+	tmp=in[i+j*n];
+	//mydat[j]=toComplex(in[i+j*n]);
+	mydat[j]=make_cuFloatComplex(tmp.x,tmp.y);
+      }
+
+      //loop over rows
+      for (int j=kk-1;j<m;j++) {
+	{
+	  T tmp;
+	  tmp=in[i+(j)*n];
+	  mydat[kk-1]=make_cuFloatComplex(tmp.x,tmp.y);
+	  //mydat[kk-1]=in[i+(j)*n];
+	}
+	cuFloatComplex tmp=make_cuFloatComplex(0,0);
+	for (int k=0;k<kk;k++) 
+	  tmp=cuCaddf(tmp,cuCmulf(mywin[k],mydat[k]));
+	out[i+(j+1-kk)*n]=tmp;
+	for (int k=0;k<kk-1;k++)
+	  mydat[k]=mydat[k+1];
+	
+      }
+      
+    }
+}
+/*--------------------------------------------------------------------------------*/
 extern "C"
 {
 void conv_cols(void *in, float *out, float *win, int n, int m, int kk, int elemsize)
@@ -77,6 +118,25 @@ void conv_cols(void *in, float *out, float *win, int n, int m, int kk, int elems
     break;
   default:
     fprintf(stderr,"Unhandled element size %d in conv_cols_gpu.\n",elemsize);
+    break;
+  }
+}
+}
+/*--------------------------------------------------------------------------------*/
+extern "C"
+{
+void conv_cols_complex(void *in, cuFloatComplex *out, float *win, int n, int m, int kk, int elemsize)
+{
+  //printf("elemsize is %d\n",elemsize);
+  switch(elemsize) {
+  case -8:
+    conv_cols_complex_gpu<<<128,256>>>((cuFloatComplex *)in,out,win,n,m,kk);
+    break;
+  case -16:
+    conv_cols_complex_gpu<<<256,256>>>((cuDoubleComplex *)in,out,win,n,m,kk);
+    break;
+  default:
+    fprintf(stderr,"Unhandled element size %d in conv_cols_complex_gpu.\n",elemsize);
     break;
   }
 }
