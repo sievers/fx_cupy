@@ -61,12 +61,16 @@ def cast_pfb(dat,win,ntap,nchan,iq=False):
     return cp.reshape(conv_cols(dd,ww),[nant,nblock,nn])
     
 
-def pfb_xcorr_block(dat,win,ntap,nchan,full=False):
-    dat_pfb=cast_pfb(dat,win,ntap,nchan)
-    dft=cp.fft.rfft(dat_pfb,axis=-1)
+def pfb_xcorr_block(dat,win,ntap,nchan,full=False,iq=False):
+    dat_pfb=cast_pfb(dat,win,ntap,nchan,iq=iq)
+    if iq:
+        dft=cp.fft.fft(dat_pfb,axis=-1)
+    else:
+        dft=cp.fft.rfft(dat_pfb,axis=-1)
 
-    tmp=cp.transpose(dft,(2,0,1))
-    #print('tmp shape is ',tmp.shape)
+    tmp=cp.transpose(dft,(2,0,1)).copy()
+    print('tmp shape is ',tmp.shape)
+    #tmp[:]=1
     tmp[:,:,-ntap+1:]=0
     #prod=tmp@(cp.conj(cp.transpose(tmp,(0,2,1))))
     prod=cherk_batched(tmp)
@@ -106,7 +110,7 @@ def reshape_pfb(dat,win,ntap):
         out=out+dat[:,i:nb+i-ntap,:]*win[i*nn:(i+1)*nn]
     return out
 
-def make_autos(dat,nchan,ntap,win=None,iq=False):
+def make_autos(dat,nchan,ntap,win=None,iq=False,full=False):
     if win is None:
         win=get_win(nchan,ntap)
     crud=cast_pfb(dat,win,ntap,nchan,iq=iq)
@@ -118,6 +122,12 @@ def make_autos(dat,nchan,ntap,win=None,iq=False):
     #it would not be too hard to write a kernel that sums, but I am lazy
     spec=cp.sum(cp.abs(crudft[:,:-ntap+1,:])**2,axis=1)
     if iq:
-        return(cp.fft.fftshift(spec,axes=-1))
+        if full:
+            return (cp.fft.fftshift(spec,axes=-1)),crudft
+        else:
+            return(cp.fft.fftshift(spec,axes=-1))
     else:
-        return spec
+        if full:
+            return spec,crudft
+        else:
+            return spec

@@ -154,22 +154,30 @@ void cherk_batched_gpu(cuFloatComplex *in, cuFloatComplex *out, int nmat, int n,
   for (int imat=blockIdx.x;imat<nmat;imat+=gridDim.x)
     {
       __shared__ cuFloatComplex patch[BS_CHERK][BS_CHERK];
-
+      if ((threadIdx.x<BS_CHERK)&&(threadIdx.y<BS_CHERK))
+	patch[threadIdx.x][threadIdx.y]=make_cuFloatComplex(0,0);
       cuFloatComplex tmp=make_cuFloatComplex(0,0);
       for (int i=0;i<nblock;i++) {
+	//int myind=i*BS_CHERK+threadIdx.x;
 	int myind=i*BS_CHERK+threadIdx.x;
 	if (myind<k)
-	  patch[threadIdx.y][threadIdx.x]=in[threadIdx.y*k+myind+imat*n*k];
+	  if (threadIdx.y<n)
+	    patch[threadIdx.y][threadIdx.x]=in[threadIdx.y*k+myind+imat*n*k];
 	else
 	  patch[threadIdx.y][threadIdx.x]=make_cuFloatComplex(0,0);
 	__syncthreads();
 	for (int j=0;j<BS_CHERK;j++)
 	  tmp=cuCaddf(tmp,cuCmulf(patch[threadIdx.x][j],cuConjf(patch[threadIdx.y][j])));
+	  //tmp=cuCaddf(tmp,make_cuFloatComplex(1,0));
 	__syncthreads();
 	//tmp=patch[0][0];
 	//__syncthreads();
       }
-      out[imat*n*n+threadIdx.x*BS_CHERK+threadIdx.y]=tmp;
+      if ((threadIdx.x<n)&&(threadIdx.y<n)) {
+	out[imat*n*n+threadIdx.x*n+threadIdx.y]=tmp;
+	//out[imat*n*n+threadIdx.x*n+threadIdx.y]=make_cuFloatComplex(1,0);
+      }
+      
       //out[imat*n*n+threadIdx.x*BS_CHERK+threadIdx.y]=make_cuFloatComplex(1,0);
       __syncthreads();
       //out[0]=make_cuFloatComplex(1,0);
