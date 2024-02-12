@@ -2,6 +2,7 @@ import numpy as np
 import cupy as cp
 import fx_cupy
 from matplotlib import pyplot as plt
+from cupyx.profiler import benchmark
 
 samps=np.load('samples_IQ_2p4MHz.npy')
 nchan=1024
@@ -35,3 +36,15 @@ spec2=np.fft.fftshift(np.squeeze(cp.asnumpy(dspec2[:,0,0])))
 np.save('spec2.npy',np.real(spec2))
 
 print('fractional error on channel 0 autos is ',np.std(spec2-spec)/np.std(spec2))
+print('\ntimings:')
+print('transfer: ',benchmark(cp.asarray,(np.reshape(samps,[1,len(samps)]),),n_repeat=100))
+print('xcorr: ',benchmark(fx_cupy.pfb_xcorr_block,(dsamps,win,ntap,nchan,False,True),n_repeat=100))
+
+nant=8
+samps2=np.empty([8,len(samps)],dtype=samps.dtype)
+for i in range(nant):
+    samps2[i,:]=samps
+dsamps2=cp.asarray(samps2)
+print('\nwith ',nant,' streams: ')
+print('transfer: ',benchmark(cp.asarray,(samps2,),n_repeat=100))
+print('xcorr: ',benchmark(fx_cupy.pfb_xcorr_block,(dsamps2,win,ntap,nchan,False,True),n_repeat=100))

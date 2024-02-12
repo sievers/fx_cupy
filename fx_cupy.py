@@ -69,7 +69,7 @@ def pfb_xcorr_block(dat,win,ntap,nchan,full=False,iq=False):
         dft=cp.fft.rfft(dat_pfb,axis=-1)
 
     tmp=cp.transpose(dft,(2,0,1)).copy()
-    print('tmp shape is ',tmp.shape)
+    #print('tmp shape is ',tmp.shape)
     #tmp[:]=1
     tmp[:,:,-ntap+1:]=0
     #prod=tmp@(cp.conj(cp.transpose(tmp,(0,2,1))))
